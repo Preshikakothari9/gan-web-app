@@ -1,0 +1,29 @@
+# Python
+venv/
+env/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# Project data / trained models (regenerated at runtime, don't commit)
+backend/models/*.pth
+backend/data/*
+!backend/models/.gitkeep
+!backend/data/.gitkeep
+
+# Env / secrets
+.env
+.env.local
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
