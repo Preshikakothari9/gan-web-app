@@ -10,6 +10,23 @@ loss curves in real time.
 ![python](https://img.shields.io/badge/python-3.12-blue)
 ![pytorch](https://img.shields.io/badge/pytorch-2.9-red)
 
+## Screenshots
+
+**Image GAN — early training (epoch 1/18)**, sampling from the generator's
+current (still-random) weights. This is what the "Generated Output" panel
+looks like before the network has learned anything — pure noise, as
+expected this early:
+
+![Image GAN training](docs/screenshots/image-gan-training.png)
+
+**Text GAN — after a completed 20-epoch run**, sampled at temperature 1.4.
+Output stays grammatically loose (expected, given the ~30-sentence
+template vocabulary — see "Known limitations"), but usefully shows the
+generator drawing varied word combinations rather than collapsing onto a
+single repeated output:
+
+![Text GAN output](docs/screenshots/text-gan-output.png)
+
 ## Architecture
 
 ```
