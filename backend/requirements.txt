@@ -1,0 +1,24 @@
+# CPU-only PyTorch build — the default PyPI wheel bundles the full CUDA
+# toolkit (~4+ GB of nvidia-*-cu12 packages) which isn't needed (and won't
+# even fit) on a GPU-less host like Render's free tier.
+#
+# IMPORTANT: `--extra-index-url` alone is NOT enough here. When the same
+# version string (e.g. "2.9.0") exists on both PyPI and this index, pip
+# does not reliably prefer one over the other, and in practice ends up
+# resolving to the default PyPI (GPU/CUDA) build anyway. Pinning the
+# explicit "+cpu" local-version suffix forces pip to resolve against this
+# index specifically, since PyPI has no "+cpu"-tagged build to compete with.
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+flask==3.0.3
+flask-cors==4.0.1
+torch==2.9.0+cpu
+torchvision==0.24.0+cpu
+Pillow==12.3.0
+numpy==2.5.1
+matplotlib==3.11.0
+gunicorn==23.0.0
+
+# Dev/test only — not needed at runtime, but kept in the same file so
+# `pip install -r requirements.txt` is enough to run the test suite too.
+pytest==8.3.5

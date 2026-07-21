@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: gan-studio
+    runtime: python
+    plan: free
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: gunicorn --chdir backend app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: FLASK_DEBUG
+        value: "false"
+    healthCheckPath: /api/health

@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>GAN Studio — Image & Text Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0a0a0f;
+    --surface:  #111118;
+    --card:     #16161f;
+    --border:   #2a2a3a;
+    --accent:   #6c63ff;
+    --accent2:  #ff6584;
+    --accent3:  #43e8d8;
+    --text:     #e8e8f0;
+    --muted:    #6b6b80;
+    --success:  #43e8a0;
+    --warning:  #ffd166;
+    --mono:     'Space Mono', monospace;
+    --sans:     'DM Sans', sans-serif;
+    --radius:   12px;
+    --glow:     0 0 20px rgba(108,99,255,0.25);
+  }
+
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); }
+
+  /* ── Layout ── */
+  .shell { display: grid; grid-template-rows: 64px 1fr; min-height: 100vh; }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 28px; border-bottom: 1px solid var(--border);
+    background: rgba(10,10,15,0.92); backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-mark {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 13px; font-weight: 700; color: #fff;
+  }
+  .logo-text { font-family: var(--mono); font-size: 15px; letter-spacing: 0.05em; }
+  .logo-text span { color: var(--accent); }
+
+  .status-pill {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 12px; border-radius: 20px;
+    border: 1px solid var(--border); font-size: 12px;
+    font-family: var(--mono); color: var(--muted);
+    transition: all 0.3s;
+  }
+  .status-pill.connected { border-color: var(--success); color: var(--success); }
+  .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .status-pill.connected .dot { animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  main { display: grid; grid-template-columns: 240px 1fr; overflow: hidden; height: calc(100vh - 64px); }
+
+  /* ── Sidebar ── */
+  nav {
+    border-right: 1px solid var(--border); padding: 20px 12px;
+    display: flex; flex-direction: column; gap: 4px; overflow-y: auto;
+    background: var(--surface);
+  }
+  .nav-section { font-size: 10px; font-family: var(--mono); color: var(--muted);
+    letter-spacing: 0.12em; padding: 12px 12px 6px; text-transform: uppercase; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+    border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500;
+    color: var(--muted); transition: all 0.2s; border: 1px solid transparent;
+    user-select: none;
+  }
+  .nav-item:hover { background: rgba(108,99,255,0.08); color: var(--text); }
+  .nav-item.active {
+    background: rgba(108,99,255,0.14); color: var(--accent);
+    border-color: rgba(108,99,255,0.25);
+  }
+  .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+
+  /* ── Content Area ── */
+  .content { overflow-y: auto; padding: 28px; display: flex; flex-direction: column; gap: 24px; }
+  .page { display: none; flex-direction: column; gap: 24px; animation: fadeIn 0.3s ease; }
+  .page.active { display: flex; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+
+  /* ── Page Header ── */
+  .page-header { display: flex; align-items: flex-start; justify-content: space-between; }
+  .page-title { font-family: var(--mono); font-size: 22px; font-weight: 700; }
+  .page-title span { color: var(--accent); }
+  .page-sub { font-size: 13px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px;
+  }
+  .card-title { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+
+  /* ── Grid layouts ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+  /* ── Stat Boxes ── */
+  .stat { background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 18px; }
+  .stat-label { font-size: 11px; font-family: var(--mono); color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.1em; }
+  .stat-value { font-size: 26px; font-family: var(--mono); font-weight: 700;
+    margin-top: 4px; line-height: 1; }
+  .stat-value.accent  { color: var(--accent); }
+  .stat-value.accent2 { color: var(--accent2); }
+  .stat-value.accent3 { color: var(--accent3); }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer;
+    font-family: var(--sans); font-size: 14px; font-weight: 600;
+    transition: all 0.2s; white-space: nowrap;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #7d75ff; box-shadow: var(--glow); }
+  .btn-danger  { background: rgba(255,101,132,0.15); color: var(--accent2);
+    border: 1px solid rgba(255,101,132,0.3); }
+  .btn-danger:hover  { background: rgba(255,101,132,0.25); }
+  .btn-ghost   { background: var(--surface); color: var(--text);
+    border: 1px solid var(--border); }
+  .btn-ghost:hover   { border-color: var(--accent); color: var(--accent); }
+  .btn:disabled      { opacity: 0.4; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+  /* ── Form Controls ── */
+  .form-row { display: flex; flex-direction: column; gap: 6px; }
+  .form-label { font-size: 12px; font-family: var(--mono); color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.08em; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .range-val { font-family: var(--mono); font-size: 13px; color: var(--accent); }
+  select, input[type=number] {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); border-radius: 8px; padding: 9px 12px;
+    font-family: var(--sans); font-size: 14px; width: 100%;
+    outline: none; transition: border-color 0.2s;
+  }
+  select:focus, input[type=number]:focus { border-color: var(--accent); }
+
+  /* ── Progress Bar ── */
+  .progress-wrap { background: var(--surface); border-radius: 6px; overflow: hidden; height: 6px; }
+  .progress-bar  { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent3));
+    border-radius: 6px; transition: width 0.5s ease; }
+
+  /* ── Status Badge ── */
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 20px; font-size: 12px; font-family: var(--mono);
+  }
+  .badge-idle    { background: rgba(107,107,128,0.15); color: var(--muted); }
+  .badge-running { background: rgba(255,209,102,0.15); color: var(--warning); }
+  .badge-done    { background: rgba(67,232,160,0.15);  color: var(--success); }
+  .badge-error   { background: rgba(255,101,132,0.15); color: var(--accent2); }
+
+  /* ── Generated Image Grid ── */
+  .img-output {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; min-height: 200px; display: flex;
+    align-items: center; justify-content: center; overflow: hidden;
+  }
+  .img-output img { width: 100%; height: auto; image-rendering: pixelated; border-radius: 8px; }
+  .img-placeholder { text-align: center; color: var(--muted); }
+  .img-placeholder .icon { font-size: 36px; margin-bottom: 8px; }
+  .img-placeholder p { font-size: 13px; }
+
+  /* ── Text Output ── */
+  .text-list { display: flex; flex-direction: column; gap: 8px; }
+  .text-item {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px;
+    font-family: var(--mono); font-size: 13px; line-height: 1.6;
+    color: var(--text); position: relative;
+    transition: border-color 0.2s;
+  }
+  .text-item:hover { border-color: var(--accent); }
+  .text-item .idx { color: var(--accent); margin-right: 8px; font-size: 11px; }
+  .text-empty { color: var(--muted); font-style: italic; }
+
+  /* ── Log Console ── */
+  .console {
+    background: #080810; border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px; font-family: var(--mono);
+    font-size: 12px; height: 160px; overflow-y: auto; color: #8888aa;
+  }
+  .log-line { line-height: 1.8; }
+  .log-line.info  { color: var(--accent3); }
+  .log-line.ok    { color: var(--success); }
+  .log-line.warn  { color: var(--warning); }
+  .log-line.err   { color: var(--accent2); }
+
+  /* ── Chart ── */
+  .chart-wrap { position: relative; height: 220px; }
+
+  /* ── Temperature control ── */
+  .temp-row { display: flex; align-items: center; gap: 12px; }
+  .temp-label { font-size: 12px; font-family: var(--mono); color: var(--muted); white-space: nowrap; }
+
+  /* ── Divider ── */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+
+  /* ── About Page ── */
+  .about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .arch-block { background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px; }
+  .arch-title { font-family: var(--mono); font-size: 13px; font-weight: 700;
+    color: var(--accent); margin-bottom: 10px; }
+  .arch-layer { display: flex; align-items: center; gap: 10px; padding: 7px 10px;
+    border-radius: 6px; margin-bottom: 4px; background: rgba(108,99,255,0.06);
+    border: 1px solid rgba(108,99,255,0.12); font-size: 12px; font-family: var(--mono); }
+  .arch-layer .lname { color: var(--text); flex: 1; }
+  .arch-layer .lshape { color: var(--accent3); font-size: 11px; }
+  .arch-arrow { text-align: center; color: var(--muted); font-size: 18px; margin: 2px 0; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* ── Spinner ── */
+  .spinner { display: inline-block; width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.2); border-top-color: currentColor;
+    border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Trained badge on image ── */
+  .trained-tag {
+    position: absolute; top: 8px; right: 8px;
+    background: rgba(67,232,160,0.15); color: var(--success);
+    border: 1px solid rgba(67,232,160,0.3);
+    padding: 3px 8px; border-radius: 20px; font-size: 11px; font-family: var(--mono);
+  }
+  .untrained-tag {
+    position: absolute; top: 8px; right: 8px;
+    background: rgba(255,209,102,0.15); color: var(--warning);
+    border: 1px solid rgba(255,209,102,0.3);
+    padding: 3px 8px; border-radius: 20px; font-size: 11px; font-family: var(--mono);
+  }
+
+  /* ── Error notice ── */
+  .error-box {
+    background: rgba(255,101,132,0.08); border: 1px solid rgba(255,101,132,0.25);
+    border-radius: 10px; padding: 14px 16px; font-size: 13px; color: var(--accent2);
+    display: none;
+  }
+  .error-box.visible { display: block; }
+
+  /* ── Header right / API key ── */
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .api-key-box { display: flex; align-items: center; gap: 6px; }
+  .api-key-box input {
+    background: var(--bg2, #16162a); border: 1px solid #2a2a44; border-radius: 8px;
+    color: var(--text); font-family: var(--mono); font-size: 12px;
+    padding: 6px 10px; width: 150px;
+  }
+  .api-key-box input:focus { outline: none; border-color: var(--accent, #6c63ff); }
+  .api-key-box button {
+    background: rgba(108,99,255,0.12); border: 1px solid rgba(108,99,255,0.3);
+    color: var(--accent, #6c63ff); border-radius: 8px; padding: 6px 10px;
+    font-family: var(--mono); font-size: 12px; cursor: pointer;
+  }
+  .api-key-box button:hover { background: rgba(108,99,255,0.22); }
+  .api-key-box.saved input { border-color: var(--success, #43e8a0); }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- ══ HEADER ══ -->
+<header>
+  <div class="logo">
+    <div class="logo-mark">G</div>
+    <div class="logo-text">GAN<span>Studio</span></div>
+  </div>
+  <div class="header-right">
+    <div class="api-key-box" id="apiKeyBox" title="Only needed if the server has API_KEY set">
+      <input type="password" id="apiKeyInput" placeholder="API key (if required)" autocomplete="off" />
+      <button id="apiKeySaveBtn" onclick="saveApiKey()">Save</button>
+    </div>
+    <div class="status-pill" id="connPill">
+      <span class="dot"></span>
+      <span id="connText">Connecting…</span>
+    </div>
+  </div>
+</header>
+
+<!-- ══ BODY ══ -->
+<main>
+
+  <!-- Sidebar -->
+  <nav>
+    <div class="nav-section">Navigation</div>
+    <div class="nav-item active" onclick="showPage('dashboard')">
+      <span class="nav-icon">◈</span> Dashboard
+    </div>
+    <div class="nav-section">Generators</div>
+    <div class="nav-item" onclick="showPage('image')">
+      <span class="nav-icon">▦</span> Image GAN
+    </div>
+    <div class="nav-item" onclick="showPage('text')">
+      <span class="nav-icon">≡</span> Text GAN
+    </div>
+    <div class="nav-section">Info</div>
+    <div class="nav-item" onclick="showPage('about')">
+      <span class="nav-icon">◎</span> Architecture
+    </div>
+  </nav>
+
+  <!-- Content -->
+  <div class="content">
+
+    <!-- ══════════════════════ DASHBOARD PAGE ══════════════════════ -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Overview <span>//</span> Dashboard</div>
+          <div class="page-sub">Monitor both GAN models — image generation (MNIST) and text generation (LSTM)</div>
+        </div>
+      </div>
+
+      <!-- Error notice (shown when backend is offline) -->
+      <div class="error-box" id="offlineBox">
+        ⚠ <strong>Backend not running.</strong> Open a terminal and run:
+        <code style="display:block;margin-top:6px;font-family:var(--mono);color:var(--warning);">
+          cd backend &nbsp;&nbsp;→&nbsp;&nbsp; python app.py
+        </code>
+        Then refresh this page. The backend must be running at <code style="color:var(--accent3)">http://localhost:5000</code>
+      </div>
+
+      <div class="grid-3">
+        <div class="stat">
+          <div class="stat-label">Device</div>
+          <div class="stat-value accent" id="devStat">—</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Image Model</div>
+          <div class="stat-value accent2" id="imgModelStat">—</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Text Model</div>
+          <div class="stat-value accent3" id="txtModelStat">—</div>
+        </div>
+      </div>
+
+      <!-- Image GAN quick status -->
+      <div class="card">
+        <div class="card-title">Image GAN — Training Progress</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <span id="imgStatusBadge" class="badge badge-idle">Idle</span>
+          <span style="font-family:var(--mono);font-size:12px;color:var(--muted);" id="imgEpochLabel">—</span>
+        </div>
+        <div class="progress-wrap">
+          <div class="progress-bar" id="imgProgress" style="width:0%"></div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:12px;">
+          <div style="flex:1">
+            <div class="form-label">D Loss</div>
+            <div style="font-family:var(--mono);font-size:18px;color:var(--accent2);" id="imgDLoss">—</div>
+          </div>
+          <div style="flex:1">
+            <div class="form-label">G Loss</div>
+            <div style="font-family:var(--mono);font-size:18px;color:var(--accent);" id="imgGLoss">—</div>
+          </div>
+          <div style="flex:1">
+            <div class="form-label">Status</div>
+            <div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:4px;" id="imgStatusText">idle</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Text GAN quick status -->
+      <div class="card">
+        <div class="card-title">Text GAN — Training Progress</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <span id="txtStatusBadge" class="badge badge-idle">Idle</span>
+          <span style="font-family:var(--mono);font-size:12px;color:var(--muted);" id="txtEpochLabel">—</span>
+        </div>
+        <div class="progress-wrap">
+          <div class="progress-bar" id="txtProgress" style="width:0%"></div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:12px;">
+          <div style="flex:1">
+            <div class="form-label">D Loss</div>
+            <div style="font-family:var(--mono);font-size:18px;color:var(--accent2);" id="txtDLoss">—</div>
+          </div>
+          <div style="flex:1">
+            <div class="form-label">G Loss</div>
+            <div style="font-family:var(--mono);font-size:18px;color:var(--accent);" id="txtGLoss">—</div>
+          </div>
+          <div style="flex:1">
+            <div class="form-label">Status</div>
+            <div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:4px;" id="txtStatusText">idle</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════ IMAGE PAGE ══════════════════════ -->
+    <div class="page" id="page-image">
+      <div class="page-header">
+        <div>
+          <div class="page-title">▦ Image <span>GAN</span></div>
+          <div class="page-sub">MNIST digit generator — trains a fully-connected GAN on 60,000 handwritten digits</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+
+        <!-- Left: Controls -->
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div class="card">
+            <div class="card-title">Training Config</div>
+            <div style="display:flex;flex-direction:column;gap:14px;">
+              <div class="form-row">
+                <div class="form-label">Epochs <span class="range-val" id="imgEpochsVal">30</span></div>
+                <input type="range" min="5" max="100" value="30" id="imgEpochsSlider"
+                       oninput="document.getElementById('imgEpochsVal').textContent=this.value"/>
+              </div>
+              <div class="btn-row">
+                <button class="btn btn-primary" id="imgTrainBtn" onclick="startImageTrain()">
+                  ▶ Start Training
+                </button>
+                <button class="btn btn-danger" id="imgStopBtn" onclick="stopImage()" disabled>
+                  ■ Stop
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Status</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+              <span id="imgStatusBadge2" class="badge badge-idle">Idle</span>
+              <span style="font-family:var(--mono);font-size:12px;color:var(--muted);" id="imgEpochLabel2">—</span>
+            </div>
+            <div class="progress-wrap" style="margin-bottom:10px;">
+              <div class="progress-bar" id="imgProgress2" style="width:0%"></div>
+            </div>
+            <div style="font-family:var(--mono);font-size:12px;color:var(--muted);" id="imgStatusText2">idle</div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Generate Samples</div>
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              <div class="form-row">
+                <div class="form-label">Count (1-64)</div>
+                <input type="number" id="imgCount" value="16" min="1" max="64"/>
+              </div>
+              <button class="btn btn-ghost" onclick="generateImages()">⟳ Generate Images</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Output + Chart -->
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div class="card" style="position:relative;">
+            <div class="card-title">Generated Output</div>
+            <div class="img-output" id="imgOutput">
+              <div class="img-placeholder">
+                <div class="icon">▦</div>
+                <p>Click "Generate Images" to produce digits</p>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Loss Curves</div>
+            <div class="chart-wrap">
+              <canvas id="imgChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Console -->
+      <div class="card">
+        <div class="card-title">Console Log</div>
+        <div class="console" id="imgConsole">
+          <div class="log-line info">[GAN Studio] Image GAN ready. Configure epochs and click Start Training.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════ TEXT PAGE ══════════════════════ -->
+    <div class="page" id="page-text">
+      <div class="page-header">
+        <div>
+          <div class="page-title">≡ Text <span>GAN</span></div>
+          <div class="page-sub">LSTM-based sentence generator — learns to produce AI/ML domain sentences</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+
+        <!-- Left: Controls -->
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div class="card">
+            <div class="card-title">Training Config</div>
+            <div style="display:flex;flex-direction:column;gap:14px;">
+              <div class="form-row">
+                <div class="form-label">Epochs <span class="range-val" id="txtEpochsVal">60</span></div>
+                <input type="range" min="10" max="200" value="60" id="txtEpochsSlider"
+                       oninput="document.getElementById('txtEpochsVal').textContent=this.value"/>
+              </div>
+              <div class="btn-row">
+                <button class="btn btn-primary" id="txtTrainBtn" onclick="startTextTrain()">
+                  ▶ Start Training
+                </button>
+                <button class="btn btn-danger" id="txtStopBtn" onclick="stopText()" disabled>
+                  ■ Stop
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Status</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+              <span id="txtStatusBadge2" class="badge badge-idle">Idle</span>
+              <span style="font-family:var(--mono);font-size:12px;color:var(--muted);" id="txtEpochLabel2">—</span>
+            </div>
+            <div class="progress-wrap" style="margin-bottom:10px;">
+              <div class="progress-bar" id="txtProgress2" style="width:0%"></div>
+            </div>
+            <div style="font-family:var(--mono);font-size:12px;color:var(--muted);" id="txtStatusText2">idle</div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Generate Sentences</div>
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              <div class="form-row">
+                <div class="form-label">Count (1-20)</div>
+                <input type="number" id="txtCount" value="8" min="1" max="20"/>
+              </div>
+              <div class="form-row">
+                <div class="temp-row">
+                  <div class="temp-label">Temperature</div>
+                  <input type="range" min="1" max="20" value="10" id="tempSlider"
+                         oninput="document.getElementById('tempVal').textContent=(this.value/10).toFixed(1)"/>
+                  <span class="range-val" id="tempVal">1.0</span>
+                </div>
+              </div>
+              <button class="btn btn-ghost" onclick="generateText()">⟳ Generate Sentences</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Output + Chart -->
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div class="card">
+            <div class="card-title">Generated Sentences</div>
+            <div class="text-list" id="txtOutput">
+              <div class="text-item text-empty">No output yet — click Generate Sentences</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Loss Curves</div>
+            <div class="chart-wrap">
+              <canvas id="txtChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Console -->
+      <div class="card">
+        <div class="card-title">Console Log</div>
+        <div class="console" id="txtConsole">
+          <div class="log-line info">[GAN Studio] Text GAN ready. Configure epochs and click Start Training.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════ ABOUT PAGE ══════════════════════ -->
+    <div class="page" id="page-about">
+      <div class="page-header">
+        <div>
+          <div class="page-title">◎ Model <span>Architecture</span></div>
+          <div class="page-sub">Network layers for both GAN variants implemented in PyTorch</div>
+        </div>
+      </div>
+
+      <div class="about-grid">
+
+        <!-- Image Generator -->
+        <div class="arch-block">
+          <div class="arch-title">▦ Image Generator</div>
+          <div class="arch-layer"><span class="lname">Input noise z</span><span class="lshape">(B, 100)</span></div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-layer"><span class="lname">Linear → BatchNorm → LeakyReLU</span><span class="lshape">→ 256</span></div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-layer"><span class="lname">Linear → BatchNorm → LeakyReLU</span><span class="lshape">→ 512</span></div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-layer"><span class="lname">Linear → BatchNorm → LeakyReLU</span><span class="lshape">→ 1024</span></div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-layer"><span class="lname">Linear → Tanh</span><span class="lshape">→ 784</span></div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-layer"><span class="lname">Reshape</span><span class="lshape">(B,1,28,28)</span></div>
+        </div>
+
+        <!-- Image Discriminator -->
+        <div class="arch-block">
+          <div class="arch-title">▦ Image Discriminator</div>
+          <div class="arch-layer"><span class="lname">Input image</span><span class="lshape">(B,1,28,28)</span></div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-layer"><span class="lname">Flatten</span><span class="lshape">→ 784</span></div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-layer"><span class="lname">Linear → LeakyReLU → Dropout</span><span class="lshape">→ 512</span></div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-layer"><span class="lname">Linear → LeakyReLU → Dropout</span><span class="lshape">→ 256</span></div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-layer"><span class="lname">Linear → Sigmoid</span><span class="lshape">→ 1</span></div>
+        </div>
+
+        <!-- Text Generator -->
+        <div class="arch-block">
+          <div class="arch-title">≡ Text Generator</div>
+          <div class="arch-layer"><span class="lname">Input noise z</span><span class="lshape">(B, 64)</span></div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-layer"><span class="lname">Linear → ReLU</span><span class="lshape">→ 256</span></div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-layer"><span class="lname">Repeat × SEQ_LEN</span><span class="lshape">(B,15,256)</span></div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-layer"><span class="lname">LSTM (2 layers)</span><span class="lshape">→ 512</span></div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-layer"><span class="lname">Linear → Softmax</span><span class="lshape">(B,15,2000)</span></div>
+        </div>
+
+        <!-- Text Discriminator -->
+        <div class="arch-block">
+          <div class="arch-title">≡ Text Discriminator</div>
+          <div class="arch-layer"><span class="lname">Token ids</span><span class="lshape">(B, 15)</span></div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-layer"><span class="lname">Embedding</span><span class="lshape">(B,15,64)</span></div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-layer"><span class="lname">Conv1d(64→128) → LeakyReLU</span><span class="lshape">kernel 3</span></div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-layer"><span class="lname">Conv1d(128→64) → LeakyReLU</span><span class="lshape">kernel 3</span></div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-layer"><span class="lname">Flatten → Linear → Dropout</span><span class="lshape">→ 256</span></div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-layer"><span class="lname">Linear → Sigmoid</span><span class="lshape">→ 1</span></div>
+        </div>
+      </div>
+
+      <!-- How GAN works -->
+      <div class="card">
+        <div class="card-title">How GAN Training Works</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:4px;">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;">
+            <div style="font-family:var(--mono);font-size:12px;color:var(--accent);margin-bottom:6px;">Step 1 — Sample Noise</div>
+            <div style="font-size:13px;color:var(--muted);line-height:1.6;">Random vector z is sampled from a normal distribution and fed into the Generator G.</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;">
+            <div style="font-family:var(--mono);font-size:12px;color:var(--accent2);margin-bottom:6px;">Step 2 — Train Discriminator</div>
+            <div style="font-size:13px;color:var(--muted);line-height:1.6;">D sees real samples (label=1) and G's fake output (label=0). Binary Cross-Entropy loss is backpropagated through D.</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;">
+            <div style="font-family:var(--mono);font-size:12px;color:var(--accent3);margin-bottom:6px;">Step 3 — Train Generator</div>
+            <div style="font-size:13px;color:var(--muted);line-height:1.6;">G's fake output is fed to D. G is updated to maximise D's output (fool D into saying fake=real). Loss flows back through D into G.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</main>
+</div><!-- /shell -->
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════════════════
+// If this page was opened directly as a file, or served from a *different*
+// local dev port than the Flask backend (e.g. a separate live-server on
+// :5500 while the backend runs on :5000), talk to the backend explicitly.
+// Otherwise (Flask is serving this file itself — true both for
+// `python app.py` on :5000 locally AND for any real deployment) use a
+// same-origin relative path, so this works regardless of the production
+// hostname/port.
+const isLocalOtherPort =
+  (location.hostname === 'localhost' || location.hostname === '127.0.0.1') &&
+  location.port && location.port !== '5000';
+
+const API = (location.protocol === 'file:' || isLocalOtherPort)
+  ? 'http://localhost:5000/api'
+  : location.origin + '/api';
+let imgChart = null, txtChart = null;
+let imgPollTimer = null, txtPollTimer = null;
+
+// ═══════════════════════════════════════════════════════════
+//  API KEY (only relevant if the backend has API_KEY set — see README)
+// ═══════════════════════════════════════════════════════════
+// Kept in localStorage purely for developer/demo convenience (so you don't
+// retype it every reload). This is NOT a substitute for real auth — it's a
+// shared-secret gate to stop random visitors from triggering training on a
+// publicly deployed instance. Don't reuse a "real" secret here.
+function loadApiKey() {
+  const saved = localStorage.getItem('ganStudioApiKey') || '';
+  document.getElementById('apiKeyInput').value = saved;
+  if (saved) document.getElementById('apiKeyBox').classList.add('saved');
+}
+function saveApiKey() {
+  const val = document.getElementById('apiKeyInput').value.trim();
+  if (val) {
+    localStorage.setItem('ganStudioApiKey', val);
+    document.getElementById('apiKeyBox').classList.add('saved');
+  } else {
+    localStorage.removeItem('ganStudioApiKey');
+    document.getElementById('apiKeyBox').classList.remove('saved');
+  }
+}
+function authHeaders(extra = {}) {
+  const key = localStorage.getItem('ganStudioApiKey') || '';
+  return key ? { ...extra, 'X-API-Key': key } : extra;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════════════════════
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  const items = document.querySelectorAll('.nav-item');
+  const map = { dashboard: 0, image: 1, text: 2, about: 3 };
+  if (map[name] !== undefined) items[map[name]].classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  LOG HELPERS
+// ═══════════════════════════════════════════════════════════
+function log(consoleId, msg, type='') {
+  const c = document.getElementById(consoleId);
+  const d = document.createElement('div');
+  d.className = 'log-line ' + type;
+  const t = new Date().toLocaleTimeString();
+  d.textContent = `[${t}] ${msg}`;
+  c.appendChild(d);
+  c.scrollTop = c.scrollHeight;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  BADGE HELPER
+// ═══════════════════════════════════════════════════════════
+function setBadge(ids, status) {
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = 'badge';
+    if (status === 'idle')    { el.className += ' badge-idle';    el.textContent = 'Idle'; }
+    else if (status === 'running') { el.className += ' badge-running'; el.textContent = '⟳ Training'; }
+    else if (status === 'done')    { el.className += ' badge-done';    el.textContent = '✓ Done'; }
+    else { el.className += ' badge-error'; el.textContent = 'Error'; }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  CHART INIT
+// ═══════════════════════════════════════════════════════════
+function mkChart(canvasId) {
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  return new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [
+        { label: 'D Loss', data: [], borderColor: '#ff6584', backgroundColor: 'rgba(255,101,132,0.08)',
+          borderWidth: 2, tension: 0.4, pointRadius: 2 },
+        { label: 'G Loss', data: [], borderColor: '#6c63ff', backgroundColor: 'rgba(108,99,255,0.08)',
+          borderWidth: 2, tension: 0.4, pointRadius: 2 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 400 },
+      plugins: { legend: { labels: { color: '#8888aa', font: { family: 'Space Mono', size: 11 } } } },
+      scales: {
+        x: { ticks: { color: '#555', maxTicksLimit: 10, font: { size: 10 } }, grid: { color: '#1e1e2e' } },
+        y: { ticks: { color: '#555', font: { size: 10 } }, grid: { color: '#1e1e2e' } },
+      }
+    }
+  });
+}
+
+function updateChart(chart, dLoss, gLoss) {
+  chart.data.labels = dLoss.map((_, i) => `E${i+1}`);
+  chart.data.datasets[0].data = dLoss;
+  chart.data.datasets[1].data = gLoss;
+  chart.update('none');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  HEALTH CHECK
+// ═══════════════════════════════════════════════════════════
+async function checkHealth() {
+  try {
+    const r  = await fetch(API + '/health', { signal: AbortSignal.timeout(2000) });
+    const d  = await r.json();
+    const pill = document.getElementById('connPill');
+    pill.classList.add('connected');
+    document.getElementById('connText').textContent = 'Connected';
+    document.getElementById('devStat').textContent = d.device.toUpperCase();
+    document.getElementById('offlineBox').classList.remove('visible');
+    checkModels();
+  } catch {
+    const pill = document.getElementById('connPill');
+    pill.classList.remove('connected');
+    document.getElementById('connText').textContent = 'Offline';
+    document.getElementById('devStat').textContent  = 'N/A';
+    document.getElementById('imgModelStat').textContent = 'N/A';
+    document.getElementById('txtModelStat').textContent = 'N/A';
+    document.getElementById('offlineBox').classList.add('visible');
+  }
+}
+
+async function checkModels() {
+  try {
+    const r = await fetch(API + '/models');
+    const d = await r.json();
+    document.getElementById('imgModelStat').textContent = d.image_trained ? 'Trained ✓' : 'Untrained';
+    document.getElementById('txtModelStat').textContent  = d.text_trained  ? 'Trained ✓' : 'Untrained';
+  } catch {}
+}
+
+// ═══════════════════════════════════════════════════════════
+//  IMAGE GAN
+// ═══════════════════════════════════════════════════════════
+async function startImageTrain() {
+  const epochs = parseInt(document.getElementById('imgEpochsSlider').value);
+  try {
+    const r = await fetch(API + '/image/train', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ epochs })
+    });
+    const d = await r.json();
+    if (r.status === 401) { log('imgConsole', 'Unauthorized — check the API key in the header.', 'err'); return; }
+    if (d.error) { log('imgConsole', d.error, 'err'); return; }
+    log('imgConsole', d.message, 'ok');
+    document.getElementById('imgTrainBtn').disabled = true;
+    document.getElementById('imgStopBtn').disabled  = false;
+    startImagePoll();
+  } catch (e) {
+    log('imgConsole', 'Cannot reach backend. Is python app.py running?', 'err');
+  }
+}
+
+async function stopImage() {
+  try {
+    await fetch(API + '/image/stop', { method: 'POST', headers: authHeaders() });
+    log('imgConsole', 'Stop signal sent', 'warn');
+  } catch {}
+}
+
+function startImagePoll() {
+  if (imgPollTimer) clearInterval(imgPollTimer);
+  imgPollTimer = setInterval(pollImageStatus, 2000);
+}
+
+async function pollImageStatus() {
+  try {
+    const r = await fetch(API + '/image/status');
+    const d = await r.json();
+    const pct = d.total > 0 ? Math.round((d.epoch / d.total) * 100) : 0;
+    ['imgProgress','imgProgress2'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.width = pct + '%';
+    });
+    const label = d.total > 0 ? `Epoch ${d.epoch} / ${d.total}` : '—';
+    ['imgEpochLabel','imgEpochLabel2'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = label;
+    });
+    ['imgStatusText','imgStatusText2'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = d.status;
+    });
+    if (d.d_loss.length) {
+      const dL = d.d_loss.slice(-1)[0], gL = d.g_loss.slice(-1)[0];
+      document.getElementById('imgDLoss').textContent = dL;
+      document.getElementById('imgGLoss').textContent = gL;
+      updateChart(imgChart, d.d_loss, d.g_loss);
+    }
+    const st = d.running ? 'running' : (d.status.startsWith('Done') ? 'done' : 'idle');
+    setBadge(['imgStatusBadge','imgStatusBadge2'], st);
+    if (!d.running) {
+      clearInterval(imgPollTimer);
+      document.getElementById('imgTrainBtn').disabled = false;
+      document.getElementById('imgStopBtn').disabled  = true;
+      if (d.status.startsWith('Done')) {
+        log('imgConsole', 'Training complete! Model saved.', 'ok');
+        checkModels();
+      }
+    }
+  } catch {}
+}
+
+async function generateImages() {
+  const n = parseInt(document.getElementById('imgCount').value) || 16;
+  const out = document.getElementById('imgOutput');
+  out.innerHTML = '<div class="img-placeholder"><div class="spinner" style="width:30px;height:30px;margin:auto"></div></div>';
+  try {
+    const r = await fetch(`${API}/image/generate?n=${n}`);
+    const d = await r.json();
+    const tag = d.trained
+      ? '<span class="trained-tag">✓ Trained</span>'
+      : '<span class="untrained-tag">⚠ Untrained</span>';
+    out.innerHTML = `${tag}<img src="${d.image}" alt="Generated digits"/>`;
+    log('imgConsole', `Generated ${n} images (${d.trained ? 'trained model' : 'random weights'})`, d.trained ? 'ok' : 'warn');
+  } catch (e) {
+    out.innerHTML = '<div class="img-placeholder" style="color:#ff6584"><p>Backend not reachable</p></div>';
+    log('imgConsole', 'Failed to generate — backend offline?', 'err');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TEXT GAN
+// ═══════════════════════════════════════════════════════════
+async function startTextTrain() {
+  const epochs = parseInt(document.getElementById('txtEpochsSlider').value);
+  try {
+    const r = await fetch(API + '/text/train', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ epochs })
+    });
+    const d = await r.json();
+    if (r.status === 401) { log('txtConsole', 'Unauthorized — check the API key in the header.', 'err'); return; }
+    if (d.error) { log('txtConsole', d.error, 'err'); return; }
+    log('txtConsole', d.message, 'ok');
+    document.getElementById('txtTrainBtn').disabled = true;
+    document.getElementById('txtStopBtn').disabled  = false;
+    startTextPoll();
+  } catch {
+    log('txtConsole', 'Cannot reach backend. Is python app.py running?', 'err');
+  }
+}
+
+async function stopText() {
+  try {
+    await fetch(API + '/text/stop', { method: 'POST', headers: authHeaders() });
+    log('txtConsole', 'Stop signal sent', 'warn');
+  } catch {}
+}
+
+function startTextPoll() {
+  if (txtPollTimer) clearInterval(txtPollTimer);
+  txtPollTimer = setInterval(pollTextStatus, 2000);
+}
+
+async function pollTextStatus() {
+  try {
+    const r = await fetch(API + '/text/status');
+    const d = await r.json();
+    const pct = d.total > 0 ? Math.round((d.epoch / d.total) * 100) : 0;
+    ['txtProgress','txtProgress2'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.width = pct + '%';
+    });
+    const label = d.total > 0 ? `Epoch ${d.epoch} / ${d.total}` : '—';
+    ['txtEpochLabel','txtEpochLabel2'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = label;
+    });
+    ['txtStatusText','txtStatusText2'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = d.status;
+    });
+    if (d.d_loss.length) {
+      const dL = d.d_loss.slice(-1)[0], gL = d.g_loss.slice(-1)[0];
+      document.getElementById('txtDLoss').textContent = dL;
+      document.getElementById('txtGLoss').textContent = gL;
+      updateChart(txtChart, d.d_loss, d.g_loss);
+    }
+    const st = d.running ? 'running' : (d.status.startsWith('Done') ? 'done' : 'idle');
+    setBadge(['txtStatusBadge','txtStatusBadge2'], st);
+    if (!d.running) {
+      clearInterval(txtPollTimer);
+      document.getElementById('txtTrainBtn').disabled = false;
+      document.getElementById('txtStopBtn').disabled  = true;
+      if (d.status.startsWith('Done')) {
+        log('txtConsole', 'Training complete! Model saved.', 'ok');
+        checkModels();
+      }
+    }
+  } catch {}
+}
+
+async function generateText() {
+  const n    = parseInt(document.getElementById('txtCount').value) || 8;
+  const temp = (parseInt(document.getElementById('tempSlider').value) / 10).toFixed(1);
+  const out  = document.getElementById('txtOutput');
+  out.innerHTML = '<div class="text-item text-empty"><span class="spinner"></span> Generating...</div>';
+  try {
+    const r = await fetch(`${API}/text/generate?n=${n}&temperature=${temp}`);
+    const d = await r.json();
+    if (!d.sentences || d.sentences.length === 0) {
+      out.innerHTML = '<div class="text-item text-empty">No output returned</div>';
+      return;
+    }
+    out.innerHTML = d.sentences.map((s, i) =>
+      `<div class="text-item"><span class="idx">[${String(i+1).padStart(2,'0')}]</span>${s}</div>`
+    ).join('');
+    log('txtConsole', `Generated ${n} sentences (temp=${temp}, ${d.trained ? 'trained' : 'untrained'} model)`,
+        d.trained ? 'ok' : 'warn');
+  } catch {
+    out.innerHTML = '<div class="text-item text-empty" style="color:#ff6584">Backend not reachable</div>';
+    log('txtConsole', 'Failed to generate — backend offline?', 'err');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  loadApiKey();
+  imgChart = mkChart('imgChart');
+  txtChart = mkChart('txtChart');
+  checkHealth();
+  setInterval(checkHealth, 8000);
+});
+</script>
+</body>
+</html>
